@@ -6,21 +6,18 @@ import { SettingsSidebar } from "./SettingsSidebar";
 
 export function UploadDashboard() {
   const navigate = useNavigate();
-  
-  // Shared view state
   const [file, setFile] = useState<File | null>(null);
-  const [numQuestions, setNumQuestions] = useState(10);
+  const [numQuestions, setNumQuestions] = useState(5);
   const [difficulty, setDifficulty] = useState("medium");
   const [questionType, setQuestionType] = useState("mixed");
+  
+  const [isLoading, setIsLoading] = useState(false);
 
-const handleGenerateQuiz = async () => {
-    if (!file) {
-      alert("Proszę najpierw wgrać plik PDF.");
-      return;
-    }
+  const handleGenerateQuiz = async () => {
+    if (!file) return;
     
-    console.log("Czytam plik i łączę z AI...");
-    
+    setIsLoading(true);
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("numQuestions", numQuestions.toString());
@@ -28,7 +25,6 @@ const handleGenerateQuiz = async () => {
     formData.append("questionType", questionType);
 
     try {
-      // UWAGA: Usunięto całkowicie blok "headers"
       const response = await fetch("http://localhost:8000/api/generate", {
         method: "POST",
         body: formData,
@@ -36,16 +32,17 @@ const handleGenerateQuiz = async () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Szczegóły błędu z backendu:", errorData);
-        throw new Error(errorData.detail || "Wystąpił błąd na serwerze");
+        throw new Error(errorData.detail || "Wystąpił błąd");
       }
 
       const data = await response.json();
       navigate("/quiz", { state: { generatedQuestions: data.quiz } });
 
     } catch (error: any) {
-      console.error("Błąd połączenia z backendem:", error);
+      console.error(error);
       alert(`Błąd: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -57,7 +54,7 @@ const handleGenerateQuiz = async () => {
           <div className="mb-8">
             <h1 className="mb-2 text-3xl font-bold">EduScanner</h1>
             <p className="text-muted-foreground text-lg">
-              Upload your lecture notes and let AI generate a personalized quiz.
+              Prześlij swoje notatki z wykładów, a sztuczna inteligencja stworzy dla Ciebie spersonalizowany quiz.
             </p>
           </div>
           
@@ -74,6 +71,8 @@ const handleGenerateQuiz = async () => {
         questionType={questionType}
         setQuestionType={setQuestionType}
         onGenerate={handleGenerateQuiz}
+        isLoading={isLoading}
+        hasFile={!!file}
       />
     </div>
   );

@@ -3,7 +3,7 @@ from openai import OpenAI
 from core.config import settings
 import random
 
-# Inicjalizacja klienta na podstawie pliku config
+# client initialization
 client = OpenAI(api_key=settings.PCSS_API_KEY, base_url=settings.PCSS_BASE_URL)
 
 def sanitize_json_response(raw_content: str) -> str:
@@ -35,19 +35,19 @@ def sanitize_json_response(raw_content: str) -> str:
 def generate_quiz_from_text(text: str, num_questions: int, difficulty: str, question_type: str) -> list:
     """Wysyła tekst do modelu Bielik i zwraca strukturę JSON."""
     
-    # 1. BUDOWANIE INSTRUKCJI TYPU PYTAŃ
+    # question type instructions
     if question_type == "mixed":
-        type_instruction = "Wygeneruj MIESZANKĘ różnych typów pytań (użyj losowo: 'single', 'multiple', 'true_false')."
+        type_instruction = "Wygeneruj MIESZANKĘ różnych typów pytań (użyj losowo: 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź), 'multiple' (wielokrotny wybór - OBOWIĄZKOWO 2 lub więcej poprawnych odpowiedzi), 'true_false' prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']. Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz'))."
     elif question_type == "single":
         type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź)."
     elif question_type == "multiple":
         type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'multiple' (wielokrotny wybór - OBOWIĄZKOWO 2 lub więcej poprawnych odpowiedzi)."
     elif question_type == "true_false":
-        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'true_false' (prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']). Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz'"
+        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'true_false' (prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']. Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz')"
     else:
         type_instruction = "Wygeneruj pytania mieszane."
 
-    # 2. BUDOWANIE INSTRUKCJI POZIOMU TRUDNOŚCI
+    # difficulty level instructions
     if difficulty == "easy":
         diff_instruction = "Poziom ŁATWY: Pytaj o najbardziej podstawowe definicje i oczywiste fakty wprost z tekstu. Błędne odpowiedzi (dystraktory) mają być bardzo łatwe do odrzucenia na pierwszy rzut oka."
     elif difficulty == "academic":
@@ -55,7 +55,7 @@ def generate_quiz_from_text(text: str, num_questions: int, difficulty: str, ques
     else:
         diff_instruction = "Poziom ŚREDNI: Pytaj o główne koncepcje i ważne szczegóły. Błędne odpowiedzi powinny być sensowne, ale wyraźnie błędne dla kogoś, kto przeczytał notatki."
 
-    # 3. GŁÓWNY PROMPT
+    # main prompt
     prompt = f"""Jesteś egzaminatorem akademickim. Wygeneruj dokładnie {num_questions} pytań quizowych z poniższych notatek.
     
     POZIOM TRUDNOŚCI - {diff_instruction}
@@ -102,32 +102,28 @@ def generate_quiz_from_text(text: str, num_questions: int, difficulty: str, ques
         raise Exception(f"Wystąpił błąd komunikacji: {str(e)}")
     
 def shuffle_quiz_options(quiz_data: list) -> list:
-    """Miesza opcje odpowiedzi (oprócz true/false) i naprawia 'correctAnswers'."""
+    """Mixes questions order"""
     for question in quiz_data:
         if question.get("type") == "true_false":
-            continue # Prawda/Fałsz zostawiamy w spokoju
+            continue
             
         original_options = question.get("options", [])
         original_correct = question.get("correctAnswers", [])
         
-        # 1. Złączenie w pary: (treść_odpowiedzi, czy_jest_poprawna)
         paired_options = [
             (opt, i in original_correct) 
             for i, opt in enumerate(original_options)
         ]
-        
-        # 2. Tasowanie list par
+
         random.shuffle(paired_options)
-        
-        # 3. Rozdzielenie na nową listę opcji i nową listę poprawnych indeksów
+
         new_options = []
         new_correct = []
         for new_index, (opt_text, is_correct) in enumerate(paired_options):
             new_options.append(opt_text)
             if is_correct:
                 new_correct.append(new_index)
-                
-        # 4. Nadpisanie danych w obiekcie pytania
+
         question["options"] = new_options
         question["correctAnswers"] = new_correct
         

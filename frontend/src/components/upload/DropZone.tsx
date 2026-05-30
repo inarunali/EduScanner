@@ -53,7 +53,7 @@ export function DropZone({ currentFile, onFileDrop }: DropZoneProps) {
           onClick={() => onFileDrop(null)}
           className="flex items-center gap-2"
         >
-          <X className="w-4 h-4" /> Remove file
+          <X className="w-4 h-4" /> Usuń plik
         </Button>
       </div>
     );
@@ -76,8 +76,8 @@ export function DropZone({ currentFile, onFileDrop }: DropZoneProps) {
         <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mb-4">
           <Upload className={`w-8 h-8 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
         </div>
-        <h3 className="mb-2 font-medium">Drag & drop your PDF notes here</h3>
-        <p className="text-muted-foreground mb-6 text-sm">or click to browse files</p>
+        <h3 className="mb-2 font-medium">Przeciągnij i upuść tutaj swoje notatki w formacie PDF</h3>
+        <p className="text-muted-foreground mb-6 text-sm">lub kliknij, aby przeglądać pliki</p>
         
         <input
           id="file-upload"

@@ -16,7 +16,7 @@ export function QuizProgress({ current, total }: QuizProgressProps) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-lg">EduScanner Quiz</h2>
           <span className="text-muted-foreground text-sm font-medium">
-            Question {current} of {total}
+            Pytanie {current} z {total}
           </span>
         </div>
         <Progress value={progressPercentage} className="h-2" />
