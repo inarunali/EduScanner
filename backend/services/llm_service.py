@@ -37,7 +37,7 @@ def generate_quiz_from_text(text: str, num_questions: int, difficulty: str, ques
     
     # question type instructions
     if question_type == "mixed":
-        type_instruction = "Wygeneruj MIESZANKĘ różnych typów pytań (użyj losowo: 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź), 'multiple' (wielokrotny wybór - OBOWIĄZKOWO 2 lub więcej poprawnych odpowiedzi), 'true_false' prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']. Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz'))."
+        type_instruction = "Wygeneruj MIESZANKĘ różnych typów pytań (użyj losowo: 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź), 'multiple' (wielokrotny wybór - OBOWIĄZKOWO więcej niż 1 poprawnych odpowiedzi), 'true_false' prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']. Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz'))."
     elif question_type == "single":
         type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź)."
     elif question_type == "multiple":

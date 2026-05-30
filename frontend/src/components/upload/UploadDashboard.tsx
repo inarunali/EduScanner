@@ -1,25 +1,51 @@
-// src/components/upload/UploadDashboard.tsx
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
-import { DropZone } from "./DropZone";
 import { SettingsSidebar } from "./SettingsSidebar";
+import { Upload, FileText, X } from "lucide-react"; // Zaktualizowane importy
 
 export function UploadDashboard() {
   const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
+
+  // 1. ZMIANA STANU: Teraz to tablica plików
+  const [files, setFiles] = useState<File[]>([]);
   const [numQuestions, setNumQuestions] = useState(5);
   const [difficulty, setDifficulty] = useState("medium");
   const [questionType, setQuestionType] = useState("mixed");
-  
   const [isLoading, setIsLoading] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 2. NOWE FUNKCJE OBSŁUGI WIELU PLIKÓW
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).filter(f => f.type === "application/pdf");
+      setFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.type === "application/pdf");
+    setFiles(prev => [...prev, ...droppedFiles]);
+  };
+
+  const removeFile = (indexToRemove: number) => {
+    setFiles(files.filter((_, index) => index !== indexToRemove));
+  };
+
+  // 3. WYSYŁANIE LISTY NA SERWER
   const handleGenerateQuiz = async () => {
-    if (!file) return;
-    
+    if (files.length === 0) return;
     setIsLoading(true);
 
     const formData = new FormData();
-    formData.append("file", file);
+    
+    // Kluczowe: Dołączamy KAŻDY plik pod tym samym kluczem "files", 
+    // dzięki czemu FastAPI odbierze to jako List[UploadFile]
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    
     formData.append("numQuestions", numQuestions.toString());
     formData.append("difficulty", difficulty);
     formData.append("questionType", questionType);
@@ -47,22 +73,60 @@ export function UploadDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Main content area */}
-      <div className="flex-1 p-8 lg:p-12">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <h1 className="mb-2 text-3xl font-bold">EduScanner</h1>
-            <p className="text-muted-foreground text-lg">
-              Prześlij swoje notatki z wykładów, a sztuczna inteligencja stworzy dla Ciebie spersonalizowany quiz.
-            </p>
+    <div className="flex min-h-screen bg-background">
+      <div className="flex-1 p-12 flex flex-col items-center justify-start">
+        <h1 className="text-4xl font-bold mb-4 text-foreground">EduScanner</h1>
+        <p className="text-muted-foreground mb-12">Wgraj notatki z wykładów (PDF) i pozwól AI wygenerować test.</p>
+
+        <div className="w-full max-w-2xl">
+          {/* Strefa Dropzone */}
+          <div 
+            className="border-2 border-dashed border-border rounded-2xl p-12 flex flex-col items-center justify-center bg-card hover:bg-accent/5 transition-colors cursor-pointer mb-6"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+              <Upload className="w-8 h-8 text-primary" />
+            </div>
+            <p className="text-lg font-medium text-foreground mb-2">Przeciągnij i upuść pliki PDF tutaj</p>
+            <p className="text-sm text-muted-foreground mb-6">lub kliknij, aby przeglądać pliki</p>
+            <button className="bg-secondary text-secondary-foreground px-6 py-2 rounded-md text-sm font-medium hover:bg-secondary/80">
+              Przeglądaj pliki
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              className="hidden" 
+              accept=".pdf" 
+              multiple // <--- NOWOŚĆ: Zezwala na wybór wielu plików w oknie
+            />
           </div>
-          
-          <DropZone onFileDrop={setFile} currentFile={file} />
+
+          {/* Lista wgranych plików */}
+          {files.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-foreground">Wgrane pliki ({files.length}):</p>
+              {files.map((file, index) => (
+                <div key={index} className="flex items-center justify-between bg-card border border-border p-3 rounded-lg">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                    <span className="text-sm text-foreground truncate">{file.name}</span>
+                  </div>
+                  <button 
+                    onClick={() => removeFile(index)}
+                    className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-red-500 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Settings sidebar */}
       <SettingsSidebar 
         numQuestions={numQuestions}
         setNumQuestions={setNumQuestions}
@@ -72,7 +136,7 @@ export function UploadDashboard() {
         setQuestionType={setQuestionType}
         onGenerate={handleGenerateQuiz}
         isLoading={isLoading}
-        hasFile={!!file}
+        hasFile={files.length > 0} // <--- Sprawdzamy czy tablica ma elementy
       />
     </div>
   );
