@@ -1,14 +1,14 @@
 # To run the project
 1. Navigate to backend:
 ```bash
-cp backend
+cd backend
 ```
 
 2. Run 
 ```bash
  cp .env.example .env 
 ```
-3. Edit .env - paste your PCSS API key instead of <twój_klucz_tutaj>
+3. Edit .env - paste your PCSS API key
 ```
 PCSS_API_KEY=<twój_klucz_tutaj>
 ```
