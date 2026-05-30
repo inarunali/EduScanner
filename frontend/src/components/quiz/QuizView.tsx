@@ -1,4 +1,3 @@
-// src/components/quiz/QuizView.tsx
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { QuizProgress } from "./QuizProgress";
@@ -11,16 +10,12 @@ export function QuizView() {
   const questions = location.state?.generatedQuestions || [];
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  
-  // NOWE STANY DO WALIDACJI:
+  const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]); // <--- Tablica zamiast pojedynczej cyfry
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
 
   useEffect(() => {
-    if (questions.length === 0) {
-      navigate("/");
-    }
+    if (questions.length === 0) navigate("/");
   }, [questions, navigate]);
 
   if (questions.length === 0) return null;
@@ -30,21 +25,23 @@ export function QuizView() {
 
   const handleAction = () => {
     if (!isAnswered) {
-      // 1. Użytkownik klika "Sprawdź odpowiedź"
       setIsAnswered(true);
-      if (selectedAnswer === currentQuestion.correctAnswer) {
-        setScore((prev) => prev + 1);
-      }
+      
+      // Sprawdzanie czy obie tablice (wybrane i poprawne) są identyczne
+      const correct = currentQuestion.correctAnswers || [];
+      const isCorrect = 
+        selectedAnswers.length === correct.length && 
+        selectedAnswers.every((val) => correct.includes(val));
+
+      if (isCorrect) setScore((prev) => prev + 1);
     } else {
-      // 2. Użytkownik klika "Następne pytanie" (lub zakończ)
       if (isLastQuestion) {
-        // Zamiast AI Tutora, na razie prosty alert z wynikiem:
         alert(`Quiz finished! Your score: ${score}/${questions.length}`);
         navigate("/");
       } else {
         setCurrentIndex((prev) => prev + 1);
-        setSelectedAnswer(null);
-        setIsAnswered(false); // Resetujemy flagę dla nowego pytania
+        setSelectedAnswers([]); // Reset tablicy dla nowego pytania
+        setIsAnswered(false);
       }
     }
   };
@@ -57,15 +54,16 @@ export function QuizView() {
         <div className="w-full max-w-3xl">
           <QuestionCard 
             questionData={currentQuestion}
-            selectedAnswer={selectedAnswer}
-            onSelectAnswer={setSelectedAnswer}
-            isAnswered={isAnswered} // <--- Przekazujemy stan do karty
+            selectedAnswers={selectedAnswers}
+            onSelectAnswer={setSelectedAnswers}
+            isAnswered={isAnswered}
           />
 
           <div className="flex items-center justify-end mt-8">
+            {/* Wyłącz przycisk "Check", jeśli uczeń niczego nie zaznaczył */}
             <Button
               onClick={handleAction}
-              disabled={selectedAnswer === null}
+              disabled={selectedAnswers.length === 0}
               size="lg"
             >
               {!isAnswered 

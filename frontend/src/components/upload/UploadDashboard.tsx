@@ -11,34 +11,41 @@ export function UploadDashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [numQuestions, setNumQuestions] = useState(10);
   const [difficulty, setDifficulty] = useState("medium");
+  const [questionType, setQuestionType] = useState("mixed");
 
-  const handleGenerateQuiz = async () => {
+const handleGenerateQuiz = async () => {
     if (!file) {
-      alert("Please upload PDF notes first.");
+      alert("Proszę najpierw wgrać plik PDF.");
       return;
     }
     
-    // Zmieniamy tekst alertu (lub używamy loadera)
-    console.log("Łączę z modelem Bielik...");
+    console.log("Czytam plik i łączę z AI...");
     
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("numQuestions", numQuestions.toString());
+    formData.append("difficulty", difficulty);
+    formData.append("questionType", questionType);
+
     try {
+      // UWAGA: Usunięto całkowicie blok "headers"
       const response = await fetch("http://localhost:8000/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          numQuestions: numQuestions,
-          difficulty: difficulty,
-        }),
+        body: formData,
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Szczegóły błędu z backendu:", errorData);
+        throw new Error(errorData.detail || "Wystąpił błąd na serwerze");
+      }
+
       const data = await response.json();
-      
-      // Magia dzieje się tutaj: przechodzimy do /quiz i ładujemy dane do "state"
       navigate("/quiz", { state: { generatedQuestions: data.quiz } });
 
-    } catch (error) {
-      console.error("Backend error:", error);
-      alert("Something went wrong. Is the Python server running?");
+    } catch (error: any) {
+      console.error("Błąd połączenia z backendem:", error);
+      alert(`Błąd: ${error.message}`);
     }
   };
 
@@ -64,6 +71,8 @@ export function UploadDashboard() {
         setNumQuestions={setNumQuestions}
         difficulty={difficulty}
         setDifficulty={setDifficulty}
+        questionType={questionType}
+        setQuestionType={setQuestionType}
         onGenerate={handleGenerateQuiz}
       />
     </div>

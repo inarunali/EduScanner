@@ -2,7 +2,7 @@ import json
 from openai import OpenAI
 from core.config import settings
 
-# Inicjalizacja klienta tylko raz na podstawie pliku config
+# Inicjalizacja klienta na podstawie pliku config
 client = OpenAI(api_key=settings.PCSS_API_KEY, base_url=settings.PCSS_BASE_URL)
 
 def sanitize_json_response(raw_content: str) -> str:
@@ -31,29 +31,65 @@ def sanitize_json_response(raw_content: str) -> str:
     return raw_content
 
 
-def generate_quiz_from_text(text: str, num_questions: int, difficulty: str) -> list:
+def generate_quiz_from_text(text: str, num_questions: int, difficulty: str, question_type: str) -> list:
     """Wysyła tekst do modelu Bielik i zwraca strukturę JSON."""
-    prompt = f"""Jesteś nauczycielem. Wygeneruj {num_questions} pytań quizowych na poziomie trudności: {difficulty}.
-    MUSISZ bazować WYŁĄCZNIE na poniższym tekście z notatek studenta. Nie wymyślaj informacji spoza tekstu.
     
-    TEKST Z NOTATEK:
+    # 1. BUDOWANIE INSTRUKCJI TYPU PYTAŃ
+    if question_type == "mixed":
+        type_instruction = "Wygeneruj MIESZANKĘ różnych typów pytań (użyj losowo: 'single', 'multiple', 'true_false')."
+    elif question_type == "single":
+        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź)."
+    elif question_type == "multiple":
+        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'multiple' (wielokrotny wybór - OBOWIĄZKOWO 2 lub więcej poprawnych odpowiedzi)."
+    elif question_type == "true_false":
+        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'true_false' (prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']). Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz'"
+    else:
+        type_instruction = "Wygeneruj pytania mieszane."
+
+    # 2. BUDOWANIE INSTRUKCJI POZIOMU TRUDNOŚCI
+    if difficulty == "easy":
+        diff_instruction = "Poziom ŁATWY: Pytaj o najbardziej podstawowe definicje i oczywiste fakty wprost z tekstu. Błędne odpowiedzi (dystraktory) mają być bardzo łatwe do odrzucenia na pierwszy rzut oka."
+    elif difficulty == "academic":
+        diff_instruction = "Poziom AKADEMICKI (BARDZO TRUDNY): Pytaj o ukryte niuanse, daty, wnioski i powiązania między faktami. Błędne odpowiedzi (dystraktory) muszą być niesamowicie podchwytliwe, wiarygodne i wymagać od studenta głębokiego zrozumienia tematu."
+    else:
+        diff_instruction = "Poziom ŚREDNI: Pytaj o główne koncepcje i ważne szczegóły. Błędne odpowiedzi powinny być sensowne, ale wyraźnie błędne dla kogoś, kto przeczytał notatki."
+
+    # 3. GŁÓWNY PROMPT
+    prompt = f"""Jesteś egzaminatorem akademickim. Wygeneruj dokładnie {num_questions} pytań quizowych z poniższych notatek.
+    
+    POZIOM TRUDNOŚCI - {diff_instruction}
+    
+    TYP PYTAŃ - {type_instruction}
+
+    MUSISZ bazować WYŁĄCZNIE na tekście z notatek studenta:
     {text}
-    
+
     Zwróć wynik WYŁĄCZNIE jako tablicę obiektów JSON. Każdy obiekt ma mieć pola: 
-    "id" (liczba), "question" (tekst), "options" (tablica 4 stringów), "correctAnswer" (indeks od 0 do 3).
-    Zwróć sam czysty JSON. Żadnego tekstu przed, żadnego tekstu po, żadnych znaczników markdown."""
+    "id" (liczba), 
+    "type" (tekst - zgodny z instrukcją wyżej), 
+    "question" (tekst pytania), 
+    "options" (tablica stringów: dla 'true_false' to ZAWSZE ["Prawda", "Fałsz"], dla reszty 4 opcje), 
+    "correctAnswers" (tablica liczb: indeksy poprawnych odpowiedzi od 0. Dla 'multiple' podaj wszystkie poprawne indeksy np. [0, 2], dla reszty typów podaj dokładnie JEDNĄ cyfrę w tablicy np. [2]).
+    
+    Zwróć sam czysty JSON. Żadnych znaczników markdown i żadnego innego tekstu."""
 
     try:
         response = client.chat.completions.create(
             model=settings.PCSS_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2500,
-            temperature=0.3
+            max_tokens=2000,
+            temperature=0.3,
+            presence_penalty=0.5
         )
         
         raw_content = response.choices[0].message.content.strip()
+        
+        print("\n" + "="*50)
+        print(f"🧠 BIELIK WYZWANIE: {difficulty.upper()} | TYP: {question_type.upper()}")
+        print(raw_content)
+        print("="*50 + "\n")
+        
         clean_json = sanitize_json_response(raw_content)
-
         return json.loads(clean_json)
         
     except json.JSONDecodeError:
