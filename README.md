@@ -1,3 +1,6 @@
+# Project summary
+An intelligent tool that transforms your static PDF study notes into interactive quizzes. Powered by Bielik, the premier Polish large language model, this project helps you test your knowledge and study more effectively.
+
 # To run the project
 1. Navigate to backend:
 ```bash
