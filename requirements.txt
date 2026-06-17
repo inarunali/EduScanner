@@ -7,3 +7,4 @@ python-multipart
 dotenv
 fitz
 openai
+scikit-learn

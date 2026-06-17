@@ -7,6 +7,7 @@ from core.config import settings
 client = OpenAI(api_key=settings.PCSS_API_KEY, base_url=settings.PCSS_BASE_URL)
 
 def sanitize_json_response(raw_content: str) -> str:
+    """Strictly extracts only the JSON array from the LLM response."""
     raw_content = raw_content.strip()
 
     start_idx = raw_content.find('[')
@@ -18,6 +19,7 @@ def sanitize_json_response(raw_content: str) -> str:
     return raw_content
 
 def shuffle_quiz_options(quiz_data: list) -> list:
+    """Shuffles the answer options for each question."""
     for question in quiz_data:
         if question.get("type") == "true_false":
             continue
@@ -33,12 +35,19 @@ def shuffle_quiz_options(quiz_data: list) -> list:
 
     return quiz_data
 
+def generate_quiz_from_images(base64_images: list, num_questions: int, difficulty: str, question_type: str, nlp_keywords: list = None) -> list:
+    """Sends images to the Qwen-VL model and returns the generated quiz."""
 
-def generate_quiz_from_images(base64_images: list, num_questions: int, difficulty: str, question_type: str) -> list:
+    keywords_prompt = ""
+    # If we found keywords via TF-IDF, add a strict requirement to the prompt
+    if nlp_keywords:
+        keywords_str = ", ".join(nlp_keywords)
+        keywords_prompt = f"\nZwróć SZCZEGÓLNĄ UWAGĘ na te pojęcia (wymagane w pytaniach): {keywords_str}."
 
     prompt_text = f"""Jesteś egzaminatorem akademickim. Wygeneruj dokładnie {num_questions} pytań na podstawie ZAŁĄCZONYCH ZDJĘĆ.
         POZIOM TRUDNOŚCI - {difficulty.upper()}.
         TYP PYTAŃ - {question_type.upper()} (single - 1 odpowiedź, multiple - kilka, true_false - Prawda/Fałsz).
+        {keywords_prompt}
 
         Zwróć wynik WYŁĄCZNIE jako tablicę obiektów JSON:
         [{{ "id": 1, "type": "single", "question": "...", "options": ["A", "B", "C", "D"], "correctAnswers": [0] }}]
@@ -58,10 +67,11 @@ def generate_quiz_from_images(base64_images: list, num_questions: int, difficult
         )
         raw_content = response.choices[0].message.content.strip()
 
-        print(f"\n--- ODPOWIEDŹ MODELI ---\n{raw_content}\n--------------------")
+        print(f"\n--- MODEL RESPONSE ---\n{raw_content}\n----------------------")
 
         clean_json = sanitize_json_response(raw_content)
         return shuffle_quiz_options(json.loads(clean_json))
 
     except Exception as e:
-        raise Exception(f"Błąd LLM: {str(e)}")
+        print(f"\n--- LLM ERROR ---\n{str(e)}\n-----------------")
+        raise Exception(f"LLM Error: {str(e)}")
