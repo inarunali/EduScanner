@@ -1,12 +1,12 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { SettingsSidebar } from "./SettingsSidebar";
-import { Upload, FileText, X } from "lucide-react"; // Zaktualizowane importy
+import { Upload, FileText, X } from "lucide-react";
 
 export function UploadDashboard() {
   const navigate = useNavigate();
 
-  // 1. ZMIANA STANU: Teraz to tablica plików
+  // stany
   const [files, setFiles] = useState<File[]>([]);
   const [numQuestions, setNumQuestions] = useState(5);
   const [difficulty, setDifficulty] = useState("medium");
@@ -15,7 +15,7 @@ export function UploadDashboard() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 2. NOWE FUNKCJE OBSŁUGI WIELU PLIKÓW
+  // funkcje obslugi wielu plikow
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files).filter(f => f.type === "application/pdf");
@@ -33,7 +33,7 @@ export function UploadDashboard() {
     setFiles(files.filter((_, index) => index !== indexToRemove));
   };
 
-  // 3. WYSYŁANIE LISTY NA SERWER
+  // wysylanie na serwer
   const handleGenerateQuiz = async () => {
     if (files.length === 0) return;
     setIsLoading(true);
@@ -43,7 +43,7 @@ export function UploadDashboard() {
     // Kluczowe: Dołączamy KAŻDY plik pod tym samym kluczem "files", 
     // dzięki czemu FastAPI odbierze to jako List[UploadFile]
     files.forEach((file) => {
-      formData.append("files", file);
+      formData.append("file", file);
     });
     
     formData.append("numQuestions", numQuestions.toString());
@@ -58,11 +58,17 @@ export function UploadDashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || "Wystąpił błąd");
+
+        const errorMessage = typeof errorData.detail === 'string'
+          ? errorData.detail
+          : JSON.stringify(errorData.detail, null, 2);
+
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      navigate("/quiz", { state: { generatedQuestions: data.quiz } });
+      const responseData = await response.json();
+      const questions = responseData.quiz || responseData.data;
+      navigate("/quiz", { state: { generatedQuestions: questions } });
 
     } catch (error: any) {
       console.error(error);
@@ -79,7 +85,7 @@ export function UploadDashboard() {
         <p className="text-muted-foreground mb-12">Wgraj notatki z wykładów (PDF) i pozwól AI wygenerować test.</p>
 
         <div className="w-full max-w-2xl">
-          {/* Strefa Dropzone */}
+          {/* Dropzone */}
           <div 
             className="border-2 border-dashed border-border rounded-2xl p-12 flex flex-col items-center justify-center bg-card hover:bg-accent/5 transition-colors cursor-pointer mb-6"
             onDragOver={(e) => e.preventDefault()}
@@ -100,11 +106,11 @@ export function UploadDashboard() {
               onChange={handleFileChange} 
               className="hidden" 
               accept=".pdf" 
-              multiple // <--- NOWOŚĆ: Zezwala na wybór wielu plików w oknie
+              multiple
             />
           </div>
 
-          {/* Lista wgranych plików */}
+          {/* List of attached files */}
           {files.length > 0 && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">Wgrane pliki ({files.length}):</p>
@@ -136,7 +142,7 @@ export function UploadDashboard() {
         setQuestionType={setQuestionType}
         onGenerate={handleGenerateQuiz}
         isLoading={isLoading}
-        hasFile={files.length > 0} // <--- Sprawdzamy czy tablica ma elementy
+        hasFile={files.length > 0}
       />
     </div>
   );
