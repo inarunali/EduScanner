@@ -44,13 +44,21 @@ def generate_quiz_from_images(base64_images: list, num_questions: int, difficult
         keywords_str = ", ".join(nlp_keywords)
         keywords_prompt = f"\nZwróć SZCZEGÓLNĄ UWAGĘ na te pojęcia (wymagane w pytaniach): {keywords_str}."
 
+    # UPDATED PROMPT: Added "explanation" field to the JSON structure
     prompt_text = f"""Jesteś egzaminatorem akademickim. Wygeneruj dokładnie {num_questions} pytań na podstawie ZAŁĄCZONYCH ZDJĘĆ.
         POZIOM TRUDNOŚCI - {difficulty.upper()}.
         TYP PYTAŃ - {question_type.upper()} (single - 1 odpowiedź, multiple - kilka, true_false - Prawda/Fałsz).
         {keywords_prompt}
 
-        Zwróć wynik WYŁĄCZNIE jako tablicę obiektów JSON:
-        [{{ "id": 1, "type": "single", "question": "...", "options": ["A", "B", "C", "D"], "correctAnswers": [0] }}]
+        Zwróć wynik WYŁĄCZNIE jako tablicę obiektów JSON o następującej strukturze:
+        [{{ 
+            "id": 1, 
+            "type": "single", 
+            "question": "...", 
+            "options": ["A", "B", "C", "D"], 
+            "correctAnswers": [0],
+            "explanation": "Krótkie wyjaśnienie dlaczego ta odpowiedź jest poprawna."
+        }}]
         Żadnego tekstu poza JSONem!"""
 
     message_content = [{"type": "text", "text": prompt_text}]
@@ -62,7 +70,7 @@ def generate_quiz_from_images(base64_images: list, num_questions: int, difficult
         response = client.chat.completions.create(
             model="Qwen3-VL-235B-A22B-Instruct-FP8",
             messages=[{"role": "user", "content": message_content}],
-            max_tokens=2500,
+            max_tokens=3000, # Increased slightly to accommodate explanations
             temperature=0.3
         )
         raw_content = response.choices[0].message.content.strip()

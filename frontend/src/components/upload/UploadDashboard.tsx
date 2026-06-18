@@ -40,25 +40,29 @@ export function UploadDashboard() {
 
     const formData = new FormData();
     
-    // Kluczowe: Dołączamy KAŻDY plik pod tym samym kluczem "files", 
-    // dzięki czemu FastAPI odbierze to jako List[UploadFile]
+    // Kluczowe: Dołączamy KAŻDY plik pod tym samym kluczem "file",
+    // Uwaga: upewnij się, że na backendzie w pliku quiz.py masz `files: List[UploadFile] = File(...)`,
+    // jeśli chcesz obsługiwać wiele plików naraz. Jeśli masz `file: UploadFile`, backend pobierze tylko jeden.
     files.forEach((file) => {
       formData.append("file", file);
     });
-    
-    formData.append("numQuestions", numQuestions.toString());
+
+    // BARDZO WAŻNE: Zmiana kluczy z camelCase na snake_case!
+    // Te nazwy muszą w 100% odpowiadać zmiennym w FastAPI (np. num_questions: int = Form(...))
+    formData.append("num_questions", numQuestions.toString());
     formData.append("difficulty", difficulty);
-    formData.append("questionType", questionType);
+    formData.append("question_type", questionType);
 
     try {
       const response = await fetch("http://localhost:8000/api/generate", {
         method: "POST",
-        body: formData,
+        body: formData, // Nie ustawiamy Content-Type ręcznie, przeglądarka zrobi to automatycznie (multipart/form-data)
       });
 
       if (!response.ok) {
         const errorData = await response.json();
 
+        // Przetwarzanie błędu – upewniamy się, że zwracamy czytelny string
         const errorMessage = typeof errorData.detail === 'string'
           ? errorData.detail
           : JSON.stringify(errorData.detail, null, 2);
@@ -67,6 +71,8 @@ export function UploadDashboard() {
       }
 
       const responseData = await response.json();
+
+      // Obsługa różnych struktur danych zwracanych z backendu
       const questions = responseData.quiz || responseData.data;
       navigate("/quiz", { state: { generatedQuestions: questions } });
 
@@ -86,7 +92,7 @@ export function UploadDashboard() {
 
         <div className="w-full max-w-2xl">
           {/* Dropzone */}
-          <div 
+          <div
             className="border-2 border-dashed border-border rounded-2xl p-12 flex flex-col items-center justify-center bg-card hover:bg-accent/5 transition-colors cursor-pointer mb-6"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -100,12 +106,12 @@ export function UploadDashboard() {
             <button className="bg-secondary text-secondary-foreground px-6 py-2 rounded-md text-sm font-medium hover:bg-secondary/80">
               Przeglądaj pliki
             </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              className="hidden" 
-              accept=".pdf" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              accept=".pdf"
               multiple
             />
           </div>
@@ -120,7 +126,7 @@ export function UploadDashboard() {
                     <FileText className="w-5 h-5 text-primary flex-shrink-0" />
                     <span className="text-sm text-foreground truncate">{file.name}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={() => removeFile(index)}
                     className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-red-500 transition-colors"
                   >
@@ -133,7 +139,7 @@ export function UploadDashboard() {
         </div>
       </div>
 
-      <SettingsSidebar 
+      <SettingsSidebar
         numQuestions={numQuestions}
         setNumQuestions={setNumQuestions}
         difficulty={difficulty}

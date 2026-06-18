@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, XCircle, CheckSquare, Square } from "lucide-react";
+import { CheckCircle2, Circle, XCircle, CheckSquare, Square, Lightbulb } from "lucide-react";
 
 interface QuestionData {
   id: number;
@@ -6,6 +6,7 @@ interface QuestionData {
   question: string;
   options?: string[]; // Made optional because the LLM might not send them
   correctAnswers: any[]; // Set to any because the LLM might send a boolean instead of a number
+  explanation?: string; // NEW: The explanation from the LLM
 }
 
 interface QuestionCardProps {
@@ -112,6 +113,19 @@ export function QuestionCard({ questionData, selectedAnswers, onSelectAnswer, is
           );
         })}
       </div>
+
+      {/* NEW: Explanation block shown only after answering */}
+      {isAnswered && questionData.explanation && (
+        <div className="mt-8 p-5 bg-blue-500/10 border border-blue-500/20 rounded-xl animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Lightbulb className="w-5 h-5 text-blue-500" />
+            <h4 className="font-semibold text-blue-500">Wyjaśnienie:</h4>
+          </div>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            {questionData.explanation}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
