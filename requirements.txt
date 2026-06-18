@@ -5,6 +5,5 @@ python-dotenv
 pymupdf
 python-multipart
 dotenv
-fitz
 openai
 scikit-learn
