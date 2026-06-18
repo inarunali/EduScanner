@@ -4,43 +4,42 @@ import { useNavigate, useLocation } from "react-router";
 import { QuizProgress } from "./QuizProgress";
 import { QuestionCard } from "./QuestionCard";
 import { Button } from "../ui/button";
-import { Trophy, RefreshCw } from "lucide-react";
+import { Trophy, RefreshCw, RefreshCcw } from "lucide-react";
 
 export function QuizView() {
   const navigate = useNavigate();
   const location = useLocation();
   const initialQuestions = location.state?.generatedQuestions || [];
 
-  // Kolejka pytań - rośnie, jeśli odpowiemy źle (mechanika Duolingo)
-  const [questionsQueue, setQuestionsQueue] = useState<any[]>(initialQuestions);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // The list of questions currently being played
+  const [activeQuestions, setActiveQuestions] = useState<any[]>(initialQuestions);
+  // The list of questions answered incorrectly in the current run
+  const [incorrectQuestions, setIncorrectQuestions] = useState<any[]>([]);
 
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isAnswered, setIsAnswered] = useState(false);
-  const [isCurrentCorrect, setIsCurrentCorrect] = useState<boolean | null>(null);
-
-  // Śledzenie statystyk do końcowego wyniku
-  const [firstTryCorrectIds, setFirstTryCorrectIds] = useState<number[]>([]);
-  const [failedIds, setFailedIds] = useState<number[]>([]);
+  const [score, setScore] = useState(0);
 
   const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
-    if (questionsQueue.length === 0) navigate("/");
-  }, [questionsQueue, navigate]);
+    if (activeQuestions.length === 0) navigate("/");
+  }, [activeQuestions, navigate]);
 
-  if (questionsQueue.length === 0) return null;
+  if (activeQuestions.length === 0) return null;
 
-  const currentQuestion = questionsQueue[currentIndex];
-  const isLastQuestion = currentIndex === questionsQueue.length - 1;
+  const currentQuestion = activeQuestions[currentIndex];
+  const isLastQuestion = currentIndex === activeQuestions.length - 1;
 
   const handleAction = () => {
     if (!isAnswered) {
-      // 1. SPRAWDZANIE ODPOWIEDZI
+      // 1. CHECK THE ANSWER
       setIsAnswered(true);
 
       const correct = currentQuestion.correctAnswers || [];
-      // Normalizacja odpowiedzi (na wypadek gdyby LLM zwrócił booleany w Prawda/Fałsz)
+
+      // Normalize correct answers (in case LLM returned booleans for True/False)
       const normalizedCorrect = correct.map((c: any) => {
         if (typeof c === "boolean") return c ? 0 : 1;
         if (typeof c === "string") {
@@ -54,44 +53,43 @@ export function QuizView() {
         selectedAnswers.length === normalizedCorrect.length &&
         selectedAnswers.every((val) => normalizedCorrect.includes(val));
 
-      setIsCurrentCorrect(isCorrect);
-
       if (isCorrect) {
-        // Zgadł za pierwszym razem (pytania nie ma w failedIds)
-        if (!failedIds.includes(currentQuestion.id) && !firstTryCorrectIds.includes(currentQuestion.id)) {
-          setFirstTryCorrectIds((prev) => [...prev, currentQuestion.id]);
-        }
+        // Correct answer - increase score
+        setScore((prev) => prev + 1);
       } else {
-        // Błędna odpowiedź - rejestrujemy błąd
-        if (!failedIds.includes(currentQuestion.id)) {
-          setFailedIds((prev) => [...prev, currentQuestion.id]);
-        }
-        // MECHANIKA DUOLINGO: Dodajemy kopię pytania na sam koniec kolejki!
-        setQuestionsQueue((prev) => [...prev, currentQuestion]);
+        // Incorrect answer - save to the incorrect questions array for later review
+        setIncorrectQuestions((prev) => [...prev, currentQuestion]);
       }
     } else {
-      // 2. PRZEJŚCIE DO NASTĘPNEGO PYTANIA
+      // 2. MOVE TO NEXT QUESTION OR FINISH
       if (isLastQuestion) {
         setShowResults(true);
       } else {
         setCurrentIndex((prev) => prev + 1);
         setSelectedAnswers([]);
         setIsAnswered(false);
-        setIsCurrentCorrect(null);
       }
     }
   };
 
-  // Obliczamy wynik na podstawie początkowej liczby pytań
-  const score = firstTryCorrectIds.length;
-  const totalOriginal = initialQuestions.length;
-  const percentage = Math.round((score / totalOriginal) * 100) || 0;
+  // Function to restart the quiz using only the incorrectly answered questions
+  const handleRetryIncorrect = () => {
+    setActiveQuestions(incorrectQuestions); // Set active questions to the failed ones
+    setIncorrectQuestions([]); // Clear the mistakes array for the new run
+    setCurrentIndex(0); // Start from the first question
+    setScore(0); // Reset score
+    setSelectedAnswers([]);
+    setIsAnswered(false);
+    setShowResults(false);
+  };
+
+  const percentage = Math.round((score / activeQuestions.length) * 100) || 0;
 
   const getFeedbackMessage = () => {
     if (percentage === 100) return "Perfekcyjnie! Jesteś mistrzem tego tematu! 🌟";
     if (percentage >= 70) return "Świetny wynik! Egzamin akademicki masz w kieszeni! 🎓";
-    if (percentage >= 50) return "Dobrze, ale super, że powtórzyłeś błędy. 📚";
-    return "Trening czyni mistrza. Dzięki powtórkom na pewno to zapamiętasz! 💪";
+    if (percentage >= 50) return "Dobrze, ale warto przejrzeć notatki jeszcze raz. 📚";
+    return "Musisz jeszcze trochę poćwiczyć. Nie poddawaj się! 💪";
   };
 
   if (showResults) {
@@ -103,28 +101,43 @@ export function QuizView() {
           </div>
 
           <h2 className="text-2xl font-bold mb-2 text-foreground">Quiz zakończony!</h2>
-          <p className="text-muted-foreground text-sm mb-6">Wszystkie błędne pytania zostały poprawione</p>
+          <p className="text-muted-foreground text-sm mb-6">Oto Twoje podsumowanie</p>
 
           <div className="text-5xl font-black text-primary mb-4">
             {percentage}%
           </div>
 
           <p className="text-lg font-medium text-foreground mb-2">
-            Wynik z pierwszej próby: {score} / {totalOriginal} pkt
+            Wynik: {score} / {activeQuestions.length} pkt
           </p>
 
           <p className="text-sm text-muted-foreground px-4 mb-8 leading-relaxed">
             {getFeedbackMessage()}
           </p>
 
-          <Button
-            onClick={() => navigate("/")}
-            size="lg"
-            className="w-full flex items-center justify-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Rozpocznij nowy quiz z PDF
-          </Button>
+          <div className="w-full flex flex-col gap-3">
+            {/* Show "Retry Incorrect" button only if there are mistakes */}
+            {incorrectQuestions.length > 0 && (
+              <Button
+                onClick={handleRetryIncorrect}
+                size="lg"
+                variant="secondary"
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Powtórz błędne pytania ({incorrectQuestions.length})
+              </Button>
+            )}
+
+            <Button
+              onClick={() => navigate("/")}
+              size="lg"
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Rozpocznij nowy quiz z PDF
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -132,8 +145,7 @@ export function QuizView() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Pasek postępu rośnie / cofa się dynamicznie w zależności od błędów */}
-      <QuizProgress current={currentIndex + 1} total={questionsQueue.length} />
+      <QuizProgress current={currentIndex + 1} total={activeQuestions.length} />
 
       <div className="flex-1 p-8 lg:p-12 flex items-center justify-center">
         <div className="w-full max-w-3xl">
@@ -144,20 +156,7 @@ export function QuizView() {
             isAnswered={isAnswered}
           />
 
-          <div className="flex items-center justify-between mt-8">
-            <div className="flex-1">
-              {isAnswered && isCurrentCorrect === false && (
-                <p className="text-red-500 font-medium animate-in fade-in">
-                  Błędna odpowiedź. To pytanie wróci na koniec quizu!
-                </p>
-              )}
-              {isAnswered && isCurrentCorrect === true && (
-                <p className="text-green-500 font-medium animate-in fade-in">
-                  Świetnie! Poprawna odpowiedź.
-                </p>
-              )}
-            </div>
-
+          <div className="flex items-center justify-end mt-8">
             <Button
               onClick={handleAction}
               disabled={selectedAnswers.length === 0}
