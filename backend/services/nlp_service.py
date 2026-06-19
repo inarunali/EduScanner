@@ -13,7 +13,7 @@ POLISH_STOP_WORDS = [
 ]
 
 
-def get_top_tfidf_keywords(text: str, top_n: int = 5) -> list:
+def get_top_tfidf_keywords(text: str, top_n: int = 10) -> list:
     """Builds a proper TF-IDF matrix by treating sentences as documents."""
 
     # Clean text but preserve dots to split into sentences
