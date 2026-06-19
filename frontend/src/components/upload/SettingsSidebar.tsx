@@ -1,8 +1,6 @@
 // src/components/upload/SettingsSidebar.tsx
-import { Slider } from "../ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Settings, Play } from "lucide-react";
 import { Button } from "../ui/button";
-import { Loader2 } from "lucide-react";
 
 interface SettingsSidebarProps {
   numQuestions: number;
@@ -28,82 +26,95 @@ export function SettingsSidebar({
   hasFile
 }: SettingsSidebarProps) {
 
-  const isButtonDisabled = !hasFile || isLoading;
-
   return (
-    <div className="w-80 bg-card border-l border-border p-6 flex flex-col min-h-screen">
-      <div className="flex-1">
-        <h3 className="mb-6 font-semibold text-lg text-foreground">Quiz Settings</h3>
+    <div className="w-80 bg-card border-l border-border p-6 flex flex-col h-screen sticky top-0 shadow-lg">
+      <div className="flex items-center gap-2 mb-8">
+        <Settings className="w-5 h-5 text-primary" />
+        <h2 className="text-xl font-bold text-foreground">Quiz Settings</h2>
+      </div>
 
-        {/* Ilość pytań */}
-        <div className="mb-8">
-          <label className="block mb-4 text-sm font-medium text-foreground">
-            Ilość pytań
-            <span className="ml-2 text-muted-foreground">({numQuestions})</span>
+      <div className="flex-1 space-y-8">
+        {/* Number of Questions */}
+        <div className="space-y-4">
+          <label className="text-sm font-semibold text-foreground flex justify-between">
+            Number of questions:
+            <span className="text-primary">{numQuestions}</span>
           </label>
-          <Slider
-            value={[numQuestions]}
-            onValueChange={(value) => setNumQuestions(value[0])}
-            min={1}
-            max={15}
-            step={1}
-            disabled={isLoading}
-            className="w-full"
+          <input
+            type="range"
+            min="1"
+            max="20"
+            value={numQuestions}
+            onChange={(e) => setNumQuestions(Number(e.target.value))}
+            className="w-full accent-primary"
           />
         </div>
 
-        {/* Difficulty level */}
-        <div className="mb-8">
-          <label className="block mb-3 text-sm font-medium text-foreground">Difficulty Level</label>
-          <Select value={difficulty} onValueChange={setDifficulty} disabled={isLoading}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select difficulty" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="easy">Łatwy</SelectItem>
-              <SelectItem value="medium">Średni</SelectItem>
-              <SelectItem value="academic">Trudny</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Difficulty Level */}
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-foreground">Difficulty Level</label>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              { id: "easy", label: "Easy" },
+              { id: "medium", label: "Medium" },
+              { id: "hard", label: "Hard (Academic)" }
+            ].map(lvl => (
+              <label
+                key={lvl.id}
+                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                  difficulty === lvl.id ? 'border-primary bg-primary/10' : 'border-border bg-background hover:bg-muted'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="difficulty"
+                  value={lvl.id}
+                  checked={difficulty === lvl.id}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className="hidden"
+                />
+                <span className={`text-sm font-medium ${difficulty === lvl.id ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {lvl.label}
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
-        
-        {/* Question type */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2 text-foreground">
-            Typ pytań
-          </label>
+
+        {/* Question Type */}
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-foreground">Question Type</label>
           <select
             value={questionType}
             onChange={(e) => setQuestionType(e.target.value)}
-            disabled={isLoading}
-            className="w-full bg-background border border-border rounded-md px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full p-3 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
-            <option value="mixed">Różne (wszystkie rodzaje)</option>
-            <option value="single">Jeden wybór</option>
-            <option value="multiple">Wielokrotnegy wybor</option>
-            <option value="true_false">Prawda / Fałsz</option>
+            <option value="mixed">Mixed (All types)</option>
+            <option value="single">Single Choice Only</option>
+            <option value="multiple">Multiple Choice Only</option>
+            <option value="true_false">True / False Only</option>
           </select>
         </div>
       </div>
 
-      <div className="mt-auto pt-6">
-        <Button 
-          onClick={onGenerate} 
-          size="lg" 
-          className="w-full flex items-center justify-center gap-2"
-          disabled={isButtonDisabled}
+      <div className="pt-6 border-t border-border mt-auto">
+        <Button
+          onClick={onGenerate}
+          disabled={!hasFile || isLoading}
+          className="w-full h-12 text-base font-bold shadow-md flex items-center justify-center gap-2"
         >
           {isLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Twój AI pomocnik myśli...
-            </>
-          ) : !hasFile ? (
-            "Wgraj plik PDF"
+            <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
           ) : (
-            "Generuj Quiz"
+            <Play className="w-5 h-5 fill-current" />
           )}
+          {isLoading ? "Analyzing..." : "Generate Quiz"}
         </Button>
+        {!hasFile && (
+          <p className="text-xs text-center text-muted-foreground mt-3">
+            Upload at least one file to start
+          </p>
+        )}
       </div>
     </div>
   );

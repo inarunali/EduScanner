@@ -1,131 +1,105 @@
 import json
+import random
 from openai import OpenAI
 from core.config import settings
-import random
 
-# client initialization
 client = OpenAI(api_key=settings.PCSS_API_KEY, base_url=settings.PCSS_BASE_URL)
 
+
 def sanitize_json_response(raw_content: str) -> str:
-    """Czyści odpowiedź modelu z niepotrzebnych znaków markdown i tekstu."""
-    if raw_content.startswith("```json\n"):
-        raw_content = raw_content[8:]
-    elif raw_content.startswith("```json"):
-        raw_content = raw_content[7:]
-        
-    if raw_content.startswith("```\n"):
-        raw_content = raw_content[4:]
-    elif raw_content.startswith("```"):
-        raw_content = raw_content[3:]
-        
-    if raw_content.endswith("```"):
-        raw_content = raw_content[:-3]
-        
+    """Strictly extracts only the JSON array from the LLM response."""
     raw_content = raw_content.strip()
-    
     start_idx = raw_content.find('[')
     end_idx = raw_content.rfind(']')
-    
     if start_idx != -1 and end_idx != -1:
-        return raw_content[start_idx:end_idx+1]
-        
+        return raw_content[start_idx:end_idx + 1]
     return raw_content
 
 
-def generate_quiz_from_text(text: str, num_questions: int, difficulty: str, question_type: str) -> list:
-    """Wysyła tekst do modelu Bielik i zwraca strukturę JSON."""
-    
-    # question type instructions
-    if question_type == "mixed":
-        type_instruction = "Wygeneruj MIESZANKĘ różnych typów pytań (użyj losowo: 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź), 'multiple' (wielokrotny wybór - OBOWIĄZKOWO więcej niż 1 poprawnych odpowiedzi), 'true_false' prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']. Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz'))."
-    elif question_type == "single":
-        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'single' (jednokrotny wybór - tylko 1 poprawna odpowiedź)."
-    elif question_type == "multiple":
-        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'multiple' (wielokrotny wybór - OBOWIĄZKOWO 2 lub więcej poprawnych odpowiedzi)."
-    elif question_type == "true_false":
-        type_instruction = "ABSOLUTNY NAKAZ: WSZYSTKIE pytania MUSZĄ być typu 'true_false' (prawda/fałsz - zawsze dokładnie 2 opcje: ['Prawda', 'Fałsz']. Jeśli pytań jest więcej, niż 2, to chociaż jedno pytanie MUSI miec odpowiedź 'Fałsz')"
-    else:
-        type_instruction = "Wygeneruj pytania mieszane."
+def shuffle_quiz_options(quiz_data: list) -> list:
+    """Shuffles the answer options safely."""
+    for question in quiz_data:
+        if not isinstance(question, dict):
+            continue
 
-    # difficulty level instructions
-    if difficulty == "easy":
-        diff_instruction = "Poziom ŁATWY: Pytaj o najbardziej podstawowe definicje i oczywiste fakty wprost z tekstu. Błędne odpowiedzi (dystraktory) mają być bardzo łatwe do odrzucenia na pierwszy rzut oka."
-    elif difficulty == "academic":
-        diff_instruction = "Poziom AKADEMICKI (BARDZO TRUDNY): Pytaj o ukryte niuanse, daty, wnioski i powiązania między faktami. Błędne odpowiedzi (dystraktory) muszą być niesamowicie podchwytliwe, wiarygodne i wymagać od studenta głębokiego zrozumienia tematu."
-    else:
-        diff_instruction = "Poziom ŚREDNI: Pytaj o główne koncepcje i ważne szczegóły. Błędne odpowiedzi powinny być sensowne, ale wyraźnie błędne dla kogoś, kto przeczytał notatki."
+        q_type = str(question.get("type", "")).lower().replace("-", "_")
+        if q_type == "true_false":
+            continue
 
-    # main prompt
-    prompt = f"""Jesteś egzaminatorem akademickim. Wygeneruj dokładnie {num_questions} pytań quizowych z poniższych notatek.
-    
-    POZIOM TRUDNOŚCI - {diff_instruction}
-    
-    TYP PYTAŃ - {type_instruction}
+        original_options = question.get("options", [])
+        original_correct = question.get("correctAnswers", [])
 
-    MUSISZ bazować WYŁĄCZNIE na tekście z notatek studenta:
-    {text}
+        if not isinstance(original_options, list) or len(original_options) == 0:
+            continue
 
-    Zwróć wynik WYŁĄCZNIE jako tablicę obiektów JSON. Każdy obiekt ma mieć pola: 
-    "id" (liczba), 
-    "type" (tekst - zgodny z instrukcją wyżej), 
-    "question" (tekst pytania), 
-    "options" (tablica stringów: dla 'true_false' to ZAWSZE ["Prawda", "Fałsz"], dla reszty 4 opcje), 
-    "correctAnswers" (tablica liczb: indeksy poprawnych odpowiedzi od 0. Dla 'multiple' podaj wszystkie poprawne indeksy np. [0, 2], dla reszty typów podaj dokładnie JEDNĄ cyfrę w tablicy np. [2]).
-    
-    Zwróć sam czysty JSON. Żadnych znaczników markdown i żadnego innego tekstu."""
+        if not isinstance(original_correct, list):
+            original_correct = []
+
+        paired = [(opt, i in original_correct) for i, opt in enumerate(original_options)]
+        random.shuffle(paired)
+
+        question["options"] = [str(opt) for opt, _ in paired]
+        question["correctAnswers"] = [idx for idx, (_, is_corr) in enumerate(paired) if is_corr]
+
+    return quiz_data
+
+
+def generate_quiz_from_images(base64_images: list, num_questions: int, difficulty: str, question_type: str,
+                              nlp_keywords: list = None, semantic_context: list = None) -> list:
+    """Sends images and NLP context to the Qwen-VL model to return a high-quality quiz."""
+
+    keywords_prompt = ""
+    if nlp_keywords:
+        keywords_str = ", ".join(nlp_keywords)
+        keywords_prompt = f"\nPAY SPECIAL ATTENTION to these concepts (must be included in the questions): {keywords_str}."
+
+    context_prompt = ""
+    if semantic_context:
+        context_str = "\n".join([f"- {s}" for s in semantic_context])
+        context_prompt = f"\nUse the following sentences as the main factual context:\n{context_str}\n"
+
+    prompt_text = f"""Jesteś egzaminatorem akademickim. Wygeneruj dokładnie {num_questions} pytań na podstawie ZAŁĄCZONYCH ZDJĘĆ oraz tekstu.
+        POZIOM TRUDNOŚCI - {difficulty.upper()}.
+        TYP PYTAŃ - {question_type.upper()} (single - 1 odpowiedź, multiple - kilka, true_false - Prawda/Fałsz).
+        {keywords_prompt}
+        {context_prompt}
+
+        ZASADA SEMANTIC SIMILARITY: 
+        Błędne opcje odpowiedzi (dystraktory) muszą być semantycznie zbliżone do poprawnej odpowiedzi, ale być merytorycznie błędne. Nie używaj absurdalnych fałszów.
+
+        WAŻNE ZASADY FORMATOWANIA JSON:
+        1. Pole "options" JEST OBOWIĄZKOWE dla każdego typu pytania (nawet dla true_false podaj ["Prawda", "Fałsz"]).
+        2. NIE dodawaj prefiksów "A.", "B.", "C.", "D." wewnątrz tekstów opcji! Zwracaj sam czysty tekst odpowiedzi.
+
+        Zwróć wynik WYŁĄCZNIE jako tablicę obiektów JSON o następującej strukturze:
+        [{{ 
+            "id": 1, 
+            "type": "single", 
+            "question": "Treść pytania?", 
+            "options": ["Opcja 1", "Opcja 2", "Opcja 3", "Opcja 4"], 
+            "correctAnswers": [0],
+            "explanation": "Krótkie wyjaśnienie dlaczego ta odpowiedź jest poprawna."
+        }}]
+        Żadnego tekstu poza JSONem!"""
+
+
+    message_content = [{"type": "text", "text": prompt_text}]
+
+    for img in base64_images:
+        message_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
 
     try:
         response = client.chat.completions.create(
-            model=settings.PCSS_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=2000,
-            temperature=0.3,
-            presence_penalty=0.5
+            model="Qwen3-VL-235B-A22B-Instruct-FP8",
+            messages=[{"role": "user", "content": message_content}],
+            max_tokens=3000,
+            temperature=0.3
         )
-        
         raw_content = response.choices[0].message.content.strip()
-        
-        print("\n" + "="*50)
-        print(f"🧠 BIELIK WYZWANIE: {difficulty.upper()} | TYP: {question_type.upper()}")
-        print(raw_content)
-        print("="*50 + "\n")
-        
+        print(f"\n--- MODEL RESPONSE ---\n{raw_content}\n----------------------")
+
         clean_json = sanitize_json_response(raw_content)
-        quiz_data = json.loads(clean_json)
-        shuffled_quiz_data = shuffle_quiz_options(quiz_data)
-        
-        return shuffled_quiz_data
-        
-    except json.JSONDecodeError:
-        raise Exception("Błąd modelu: nie zwrócił poprawnego JSONa. Spróbuj ponownie.")
+        return shuffle_quiz_options(json.loads(clean_json))
     except Exception as e:
-        raise Exception(f"Wystąpił błąd komunikacji: {str(e)}")
-    
-def shuffle_quiz_options(quiz_data: list) -> list:
-    """Mixes questions order"""
-    for question in quiz_data:
-        if question.get("type") == "true_false":
-            continue
-            
-        original_options = question.get("options", [])
-        original_correct = question.get("correctAnswers", [])
-        
-        paired_options = [
-            (opt, i in original_correct) 
-            for i, opt in enumerate(original_options)
-        ]
-
-        random.shuffle(paired_options)
-
-        new_options = []
-        new_correct = []
-        for new_index, (opt_text, is_correct) in enumerate(paired_options):
-            new_options.append(opt_text)
-            if is_correct:
-                new_correct.append(new_index)
-
-        question["options"] = new_options
-        question["correctAnswers"] = new_correct
-        
-    return quiz_data
-    
+        print(f"\n--- LLM ERROR ---\n{str(e)}\n-----------------")
+        raise Exception(f"LLM Error: {str(e)}")

@@ -1,7 +1,8 @@
 fastapi
 uvicorn
-openai
-python-dotenv
-pymupdf
 python-multipart
-dotenv
+python-dotenv
+openai
+pymupdf
+scikit-learn
+sentence-transformers
