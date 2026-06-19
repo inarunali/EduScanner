@@ -2,8 +2,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sentence_transformers import SentenceTransformer, util
 import re
 
-# 1. Initialize the multilingual embedding model (supports Polish)
-# This will be downloaded on the first run.
+# Initialize the multilingual embedding model (supports Polish)
 embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 
 # Polish stop words to filter out noise in TF-IDF
