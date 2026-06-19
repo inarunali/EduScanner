@@ -11,15 +11,25 @@ cd backend
 ```bash
  cp .env.example .env 
 ```
+
 3. Edit .env - paste your PCSS API key
 ```
 PCSS_API_KEY=<twój_klucz_tutaj>
 ```
+
 4. Run 
 ```bash 
 uvicorn main:app --reload
 ```
+
 5. In another terminal:
+Install requirements.txt
+```bash 
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+6. Run:
 ```bash
 cd frontend
 npm i
