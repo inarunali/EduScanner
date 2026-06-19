@@ -29,11 +29,11 @@ def get_top_tfidf_keywords(text: str, top_n: int = 10) -> list:
     vectorizer = TfidfVectorizer(
         max_features=top_n,
         stop_words=POLISH_STOP_WORDS,
-        token_pattern=r'(?u)\b[a-zA-Z_ąćęłńóśźż]{4,}\b'
+        token_pattern=r'(?u)\b[a-zA-Z_ąćęłńóśźż]{9,}\b'
     )
 
     try:
-        vectorizer.fit_transform(sentences)  # Now IDF works perfectly!
+        vectorizer.fit_transform(sentences)
         feature_names = vectorizer.get_feature_names_out()
         return list(feature_names)
     except ValueError:

@@ -53,7 +53,7 @@ async def generate_quiz(
         # Run our NLP models on the COMBINED text from all files
         if combined_text.strip():
             # Extract the 5 most important keywords from all documents combined
-            nlp_keywords = get_top_tfidf_keywords(combined_text, top_n=5)
+            nlp_keywords = get_top_tfidf_keywords(combined_text, top_n=20)
             print(f"Extracted TF-IDF Keywords from multiple files: {nlp_keywords}")
 
             # Find the 3 most important sentences across all documents
