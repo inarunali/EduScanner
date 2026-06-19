@@ -1,34 +1,46 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from typing import List
 from services.file_service import extract_images_from_pdf, process_image_file, extract_text_from_pdf
 from services.llm_service import generate_quiz_from_images
-from services.nlp_service import get_top_tfidf_keywords
+# UPDATED: Import the new semantic function
+from services.nlp_service import get_top_tfidf_keywords, get_semantic_context
 
 router = APIRouter()
 
 
 @router.post("/generate")
 async def generate_quiz(
-        file: UploadFile = File(...),
+        file: List[UploadFile] = File(...),
         num_questions: int = Form(5),
         difficulty: str = Form("medium"),
         question_type: str = Form("mixed")
 ):
     try:
-        file_bytes = await file.read()
-        filename = file.filename.lower()
+        # We only take the first file for simplicity in processing,
+        # or you can loop over them if you combined them
+        target_file = file[0]
+        file_bytes = await target_file.read()
+        filename = target_file.filename.lower()
+
         base64_images = []
         nlp_keywords = []
+        semantic_context = []
 
-        # 1. Route files to their respective handlers based on the extension
         if filename.endswith(".pdf"):
             base64_images = await extract_images_from_pdf(file_bytes)
 
-            # --- NLP BLOCK (TF-IDF) ---
-            # Extract text and compute the TF-IDF matrix for the keywords
+            # --- HYBRID NLP BLOCK (TF-IDF + EMBEDDINGS) ---
             pdf_text = await extract_text_from_pdf(file_bytes)
+
+            # 1. Get Keywords
             nlp_keywords = get_top_tfidf_keywords(pdf_text, top_n=5)
             print(f"Extracted TF-IDF Keywords: {nlp_keywords}")
-            # --------------------------
+
+            # 2. Get Semantic Sentences based on keywords
+            if nlp_keywords:
+                semantic_context = get_semantic_context(pdf_text, nlp_keywords, top_k=3)
+                print(f"Extracted Semantic Context (Top 3 sentences): {semantic_context}")
+            # ----------------------------------------------
 
         elif filename.endswith((".jpg", ".jpeg", ".png")):
             base64_images = await process_image_file(file_bytes)
@@ -38,17 +50,21 @@ async def generate_quiz(
                 detail="Unsupported file format. Please upload a PDF, JPG, or PNG file."
             )
 
-        # 2. Pass the extracted images and keywords to the Vision model
+        # Pass images, keywords AND embeddings context to LLM
         quiz_data = generate_quiz_from_images(
             base64_images=base64_images,
             num_questions=num_questions,
             difficulty=difficulty,
             question_type=question_type,
-            nlp_keywords=nlp_keywords
+            nlp_keywords=nlp_keywords,
+            semantic_context=semantic_context
         )
 
-        # Return the generated quiz along with the extracted keywords in the 'meta' block
-        return {"status": "success", "data": quiz_data, "meta": {"keywords": nlp_keywords}}
+        return {
+            "status": "success",
+            "data": quiz_data,
+            "meta": {"keywords": nlp_keywords, "semantic_context": semantic_context}
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
